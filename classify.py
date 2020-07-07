@@ -6,7 +6,9 @@
 ## contained in the LICENCE file in this directory.
 
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
+import tensorflow.compat.v1 as tf
+
 import argparse
 
 import scipy.io.wavfile as wav

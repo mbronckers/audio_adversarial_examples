@@ -1,0 +1,9 @@
+# don't want this whole ting
+# DeepSpeech/
+deepspeech-0.4.1-checkpoint 
+
+# Personal SFTP setup
+sftp-config.json
+
+# Depends on your machine, just follow install.md
+requirements.txt

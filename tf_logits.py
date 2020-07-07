@@ -26,11 +26,11 @@ def compute_mfcc(audio, **kwargs):
     TensorFlow so that we can differentiate through it.
     """
 
-    batch_size, size = audio.get_shape().as_list()
-    audio = tf.cast(audio, tf.float32)
+    batch_size, size = audio.get_shape().as_list() # get batch size by getting audio shape
+    audio = tf.cast(audio, tf.float32) # cast audio file to float32 type
 
-    # 1. Pre-emphasizer, a high-pass filter
-    audio = tf.concat((audio[:, :1], audio[:, 1:] - 0.97*audio[:, :-1], np.zeros((batch_size,512),dtype=np.float32)), 1)
+    # 1. Pre-emphasizer, a high-pass filter: passes only signals above a cutoff frequency and attenuates lower frequencies
+    audio = tf.concat((audio[:, :1], audio[:, 1:] - 0.97*audio[:, :-1], np.zeros((batch_size,512), dtype=np.float32)), 1)
 
     # 2. windowing into frames of 512 samples, overlapping
     windowed = tf.stack([audio[:, i:i+512] for i in range(0,size-320,320)],1)
