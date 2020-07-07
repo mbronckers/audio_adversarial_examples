@@ -7,3 +7,4 @@ sftp-config.json
 
 # Depends on your machine, just follow install.md
 requirements.txt
+__pycache__/
