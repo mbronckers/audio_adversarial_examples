@@ -82,7 +82,7 @@ class Attack:
         # constant if it's not big enough of a distortion for your dataset.
         self.apply_delta = tf.clip_by_value(delta, -2000, 2000)*self.rescale
 
-        # We set the new input to the model to be the abve delta
+        # We set the new input to the model to be the above delta
         # plus a mask, which allows us to enforce that certain
         # values remain constant 0 for length padding sequences.
         self.new_input = new_input = self.apply_delta*mask + original
@@ -104,17 +104,20 @@ class Attack:
         # Choose the loss function we want -- either CTC or CW
         self.loss_fn = loss_fn
         if loss_fn == "CTC":
+
+            # ctc loss needs labels in sparse representation
             target = ctc_label_dense_to_sparse(self.target_phrase, self.target_phrase_lengths)
             
+            # calculate ctc loss
             ctcloss = tf.nn.ctc_loss(labels=tf.cast(target, tf.int32),
                                      inputs=logits, sequence_length=lengths)
 
             # Slight hack: an infinite l2 penalty means that we don't penalize l2 distortion
             # The code runs faster at a slight cost of distortion, and also leaves one less
-            # paramaeter that requires tuning.
+            # parameter that requires tuning.
             if not np.isinf(l2penalty):
-                loss = tf.reduce_mean((self.new_input-self.original)**2,axis=1) + l2penalty*ctcloss
-            else:
+                loss = tf.reduce_mean((self.new_input-self.original)**2,axis=1) + l2penalty*ctcloss # l2norm of delta + c*CTCloss
+            else: # default l2penalty=float(inf)
                 loss = ctcloss
             self.expanded_loss = tf.constant(0)
             
@@ -130,15 +133,15 @@ class Attack:
         start_vars = set(x.name for x in tf.global_variables())
         optimizer = tf.train.AdamOptimizer(learning_rate)
 
-        grad,var = optimizer.compute_gradients(self.loss, [delta])[0]
-        self.train = optimizer.apply_gradients([(tf.sign(grad),var)])
+        grad, var = optimizer.compute_gradients(self.loss, [delta])[0]
+        self.train = optimizer.apply_gradients([(tf.sign(grad), var)])
         
         end_vars = tf.global_variables()
         new_vars = [x for x in end_vars if x.name not in start_vars]
         
-        sess.run(tf.variables_initializer(new_vars+[delta]))
+        sess.run(tf.variables_initializer(new_vars+[delta])) # variables_initializer returns an Op that initializes a list of variables.
 
-        # Decoder from the logits, to see how we're doing
+        # beam search decoder from the logits, to see how we're doing
         self.decoded, _ = tf.nn.ctc_beam_search_decoder(logits, lengths, merge_repeated=False, beam_width=100)
 
     def attack(self, audio, lengths, target, finetune=None):
@@ -175,8 +178,11 @@ class Attack:
 
             # Print out some debug information every 10 iterations.
             if i%10 == 0:
+                
+                # computational step, executes every Op and evaluates every tensor in tuple
                 new, delta, r_out, r_logits = sess.run((self.new_input, self.delta, self.decoded, self.logits))
                 lst = [(r_out, r_logits)]
+                
                 if self.mp3:
                     mp3ed = convert_mp3(new, lengths)
                     
@@ -247,7 +253,8 @@ class Attack:
                     final_deltas[ii] = new_input[ii]
 
                     print("Worked i=%d ctcloss=%f bound=%f"%(ii,cl[ii], 2000*rescale[ii][0]))
-                    #print('delta',np.max(np.abs(new_input[ii]-audio[ii])))
+                    print('delta',np.max(np.abs(new_input[ii]-audio[ii]))) # log the delta's value
+                    
                     sess.run(self.rescale.assign(rescale))
 
                     # Just for debugging, save the adversarial example

@@ -15,7 +15,10 @@ import scipy.io.wavfile as wav
 
 import time
 import os
+
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set TF logging level (1/2/3)
+
 import sys
 from collections import namedtuple
 sys.path.append("DeepSpeech")
@@ -49,13 +52,16 @@ def main():
     while len(sys.argv) > 1:
         sys.argv.pop()
     with tf.Session() as sess:
+        
         if args.input.split(".")[-1] == 'mp3':
             raw = pydub.AudioSegment.from_mp3(args.input)
             audio = np.array([struct.unpack("<h", raw.raw_data[i:i+2])[0] for i in range(0,len(raw.raw_data),2)])
         elif args.input.split(".")[-1] == 'wav':
-            _, audio = wav.read(args.input)
+            sample_rate, audio = wav.read(args.input)
+            print("Sample rate:", sample_rate)
         else:
             raise Exception("Unknown file format")
+        
         N = len(audio)
         new_input = tf.placeholder(tf.float32, [1, N])
         lengths = tf.placeholder(tf.int32, [1])

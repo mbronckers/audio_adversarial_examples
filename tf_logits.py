@@ -32,7 +32,7 @@ def compute_mfcc(audio, **kwargs):
     # 1. Pre-emphasizer, a high-pass filter: passes only signals above a cutoff frequency and attenuates lower frequencies
     audio = tf.concat((audio[:, :1], audio[:, 1:] - 0.97*audio[:, :-1], np.zeros((batch_size,512), dtype=np.float32)), 1)
 
-    # 2. windowing into frames of 512 samples, overlapping
+    # 2. windowing into frames of 512 samples, overlapping 
     windowed = tf.stack([audio[:, i:i+512] for i in range(0,size-320,320)],1)
 
     window = np.hamming(512)
@@ -59,7 +59,7 @@ def compute_mfcc(audio, **kwargs):
     width = feat.get_shape().as_list()[1]
 
 
-    # 7. And now stick the energy next to the features
+    # 7. And now stick log energy next to the features
     feat = tf.concat((tf.reshape(tf.log(energy),(-1,width,1)), feat[:, :, 1:]), axis=2)
 
     return feat

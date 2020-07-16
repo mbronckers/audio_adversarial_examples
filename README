@@ -4,7 +4,7 @@ Nicholas Carlini and David Wagner
 https://arxiv.org/abs/1801.01944
 
 To generate adversarial examples for your own files, follow the below process
-and modify the arguments to attack,py. Ensure that the file is sampled at
+and modify the arguments to attack.py. Ensure that the file is sampled at
 16KHz and uses signed 16-bit ints as the data type. You may want to modify
 the number of iterations that the attack algorithm is allowed to run.
 
@@ -67,4 +67,4 @@ python3 attack.py --in sample-000000.wav --target "this is a test" --out adv.wav
 
 8. Verify the attack succeeded
 
-python3 attack.py --in adv.wav --restore_path deepspeech-0.4.1-checkpoint/model.v0.4.1
+python3 classify.py --in adv.wav --restore_path deepspeech-0.4.1-checkpoint/model.v0.4.1
