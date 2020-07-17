@@ -78,7 +78,7 @@ def get_logits(new_input, length, first=[]):
     """
 
     batch_size = new_input.get_shape()[0]
-    context_width = 9 # default n_context in DeepSpeech
+    context_width = 9 # number of frames in the context; default n_context in DeepSpeech
     num_mfcc_features = 26 # default n_input in DeepSpeech
 
     # 1. Compute the MFCCs for the input audio
@@ -87,8 +87,8 @@ def get_logits(new_input, length, first=[]):
     new_input_to_mfcc = compute_mfcc(new_input)
     features = tf.concat((empty_context, new_input_to_mfcc, empty_context), 1)
 
-    # 2. We get to see 9 frames at a time to make our decision,
-    # so concatenate them together.
+    # 2. create overlapping windows and
+    # remove dummy depth dimension and reshape into [batch_size, n_windows, window_width, num_mfcc_feat]
     window_width = 2 * context_width + 1 # number of frames on both sides + ourselves
     features = tf.reshape(features, [new_input.get_shape()[0], -1])
     features = tf.stack([features[:, i:i+window_width*num_mfcc_features]
