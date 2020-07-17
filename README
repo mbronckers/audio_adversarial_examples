@@ -3,6 +3,10 @@ This is the code corresponding to the paper
 Nicholas Carlini and David Wagner
 https://arxiv.org/abs/1801.01944
 
+See install.md for instructions
+
+### Carlini's notes:
+
 To generate adversarial examples for your own files, follow the below process
 and modify the arguments to attack.py. Ensure that the file is sampled at
 16KHz mono channel, and uses signed 16-bit ints as the data type. You may want to modify
@@ -21,8 +25,6 @@ However, IF YOU ARE TRYING TO REPRODUCE THE PAPER (or just have decided
 that you enjoy pain and want to suffer through dependency hell) then you
 will have to checkout commit a8d5f675ac8659072732d3de2152411f07c7aa3a and
 follow the README from there.
-
-
 
 Instructions for basic use:
 
