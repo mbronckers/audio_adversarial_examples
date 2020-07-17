@@ -16,7 +16,9 @@ import time
 import os
 import sys
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # set TF logging level (1/2/3)
 sys.path.append("DeepSpeech")
+
 import DeepSpeech
 
 def compute_mfcc(audio, **kwargs):
@@ -71,21 +73,27 @@ def get_logits(new_input, length, first=[]):
 
     First, preprocess with the TF version of MFC above,
     and then call DeepSpeech on the features.
+
+    One frame is (window_width*num_mfcc_features) long
     """
 
     batch_size = new_input.get_shape()[0]
+    context_width = 9 # default n_context in DeepSpeech
+    num_mfcc_features = 26 # default n_input in DeepSpeech
 
     # 1. Compute the MFCCs for the input audio
     # (this is differentable with our implementation above)
-    empty_context = np.zeros((batch_size, 9, 26), dtype=np.float32)
+    empty_context = np.zeros((batch_size, context_width, num_mfcc_features), dtype=np.float32)
     new_input_to_mfcc = compute_mfcc(new_input)
     features = tf.concat((empty_context, new_input_to_mfcc, empty_context), 1)
 
     # 2. We get to see 9 frames at a time to make our decision,
     # so concatenate them together.
+    window_width = 2 * context_width + 1 # number of frames on both sides + ourselves
     features = tf.reshape(features, [new_input.get_shape()[0], -1])
-    features = tf.stack([features[:, i:i+19*26] for i in range(0,features.shape[1]-19*26+1,26)],1)
-    features = tf.reshape(features, [batch_size, -1, 19, 26])
+    features = tf.stack([features[:, i:i+window_width*num_mfcc_features]
+                            for i in range(0, features.shape[1] - window_width*num_mfcc_features+1, num_mfcc_features)],1)
+    features = tf.reshape(features, [batch_size, -1, window_width, num_mfcc_features])
 
 
     # 3. Finally we process it with DeepSpeech

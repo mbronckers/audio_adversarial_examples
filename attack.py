@@ -18,6 +18,7 @@ import os
 import sys
 from collections import namedtuple
 sys.path.append("DeepSpeech")
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # set TF logging level (1/2/3)
 
 try:
     import pydub
@@ -108,7 +109,7 @@ class Attack:
             # ctc loss needs labels in sparse representation
             target = ctc_label_dense_to_sparse(self.target_phrase, self.target_phrase_lengths)
             
-            # calculate ctc loss
+            # Op that calculate ctc loss
             ctcloss = tf.nn.ctc_loss(labels=tf.cast(target, tf.int32),
                                      inputs=logits, sequence_length=lengths)
 
@@ -131,15 +132,16 @@ class Attack:
         
         # Set up the Adam optimizer to perform gradient descent for us
         start_vars = set(x.name for x in tf.global_variables())
-        optimizer = tf.train.AdamOptimizer(learning_rate)
+        optimizer = tf.train.AdamOptimizer(learning_rate) # create Adam optimizer
 
-        grad, var = optimizer.compute_gradients(self.loss, [delta])[0]
-        self.train = optimizer.apply_gradients([(tf.sign(grad), var)])
+        grad, var = optimizer.compute_gradients(self.loss, [delta])[0] # Compute the gradients of the deltas, process them if you want (not done in this case)
+        self.train = optimizer.apply_gradients([(tf.sign(grad), var)]) # returns Op that applies gradients
         
         end_vars = tf.global_variables()
         new_vars = [x for x in end_vars if x.name not in start_vars]
         
-        sess.run(tf.variables_initializer(new_vars+[delta])) # variables_initializer returns an Op that initializes a list of variables.
+        # init new_vars + perturbation delta
+        sess.run(tf.variables_initializer(new_vars+[delta])) # variables_initializer returns an Op that initializes a list of variables
 
         # beam search decoder from the logits, to see how we're doing
         self.decoded, _ = tf.nn.ctc_beam_search_decoder(logits, lengths, merge_repeated=False, beam_width=100)
@@ -321,15 +323,21 @@ def main():
         else:
             assert args.outprefix is None
             assert len(args.input) == len(args.out)
+        
         if args.finetune is not None and len(args.finetune):
             assert len(args.input) == len(args.finetune)
         
         # Load the inputs that we're given
         for i in range(len(args.input)):
-            fs, audio = wav.read(args.input[i])
-            assert fs == 16000
+            sample_rate, audio = wav.read(args.input[i])
+            
+            assert sample_rate == 16000
             assert audio.dtype == np.int16
-            print('source dB', 20*np.log10(np.max(np.abs(audio))))
+            
+            print(80*"-")
+            print('source dB: ', 20*np.log10(np.max(np.abs(audio))))
+            print(80*"-")
+            
             audios.append(list(audio))
             lengths.append(len(audio))
 
@@ -340,9 +348,9 @@ def main():
         audios = np.array([x+[0]*(maxlen-len(x)) for x in audios])
         finetune = np.array([x+[0]*(maxlen-len(x)) for x in finetune])
 
-        phrase = args.target
+        phrase = args.target # target phrase
 
-        # Set up the attack class and run it
+        # Set up the attack class
         attack = Attack(sess, 'CTC', len(phrase), maxlen,
                         batch_size=len(audios),
                         mp3=args.mp3,
@@ -350,10 +358,12 @@ def main():
                         num_iterations=args.iterations,
                         l2penalty=args.l2penalty,
                         restore_path=args.restore_path)
-        deltas = attack.attack(audios,
-                               lengths,
-                               [[toks.index(x) for x in phrase]]*len(audios),
-                               finetune)
+        
+        # run attack - calculate deltas
+        deltas = attack.attack(audio=audios,
+                               lengths=lengths,
+                               target=[[toks.index(x) for x in phrase]]*len(audios),
+                               finetune=finetune)
 
         # And now save it to the desired output
         if args.mp3:
@@ -366,9 +376,12 @@ def main():
                     path = args.out[i]
                 else:
                     path = args.outprefix+str(i)+".wav"
+                
+                # clip deltas to 16 bit depth and write to file
                 wav.write(path, 16000,
                           np.array(np.clip(np.round(deltas[i][:lengths[i]]),
                                            -2**15, 2**15-1),dtype=np.int16))
-                print("Final distortion", np.max(np.abs(deltas[i][:lengths[i]]-audios[i][:lengths[i]])))
+                
+                print("Final distortion dB", 20*np.log10(np.max(np.abs(deltas[i][:lengths[i]]-audios[i][:lengths[i]]))))
 
 main()

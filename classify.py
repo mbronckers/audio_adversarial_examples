@@ -17,7 +17,7 @@ import time
 import os
 
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set TF logging level (1/2/3)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # set TF logging level (1/2/3)
 
 import sys
 from collections import namedtuple
@@ -56,35 +56,55 @@ def main():
         if args.input.split(".")[-1] == 'mp3':
             raw = pydub.AudioSegment.from_mp3(args.input)
             audio = np.array([struct.unpack("<h", raw.raw_data[i:i+2])[0] for i in range(0,len(raw.raw_data),2)])
+        
         elif args.input.split(".")[-1] == 'wav':
             sample_rate, audio = wav.read(args.input)
-            print("Sample rate:", sample_rate)
+            
         else:
             raise Exception("Unknown file format")
         
         N = len(audio)
         new_input = tf.placeholder(tf.float32, [1, N])
         lengths = tf.placeholder(tf.int32, [1])
+        
+        length = (N-1)//320 # maximum number of characters (50/sec = audio len//320)
+        
+        print("-"*80)
+        print("Sample rate:", sample_rate)
+        print("Audio: ", audio)
+        print("Length of audio: ", N)
+        print("Length: ", length)
+        print("-"*80)
 
         with tf.variable_scope("", reuse=tf.AUTO_REUSE):
             logits = get_logits(new_input, lengths)
 
+
         saver = tf.train.Saver()
         saver.restore(sess, args.restore_path)
 
+        # logits shape [max_time, batch_size, num_classes]
+        print('Logits shape: ', logits.shape)
+        
+        # note to self: greedy decoder is beam with top_widths=1 and beam_width=1
+        # decoded.values is a CTCBeamSearchDecoder
         decoded, _ = tf.nn.ctc_beam_search_decoder(logits, lengths, merge_repeated=False, beam_width=500)
-
-        print('logits shape', logits.shape)
-        length = (len(audio)-1)//320
-        l = len(audio)
-        r = sess.run(decoded, {new_input: [audio],
-                               lengths: [length]})
+        
+        print(80*"-")
+        print(decoded[0])
+        print(80*"-")
+        
+        # returns sparse tensor of classified characters
+        # .indices: idx w/ non-zero values (2D)
+        # .values: values for each of the idx in indices (1D)
+        # .dense_shape: dense shape of the sparse tensor (non-explicit zeros)
+        output = sess.run(decoded, {new_input: [audio], # run CTCBeamSearch decoder on audio with length len(audio)//320
+                                   lengths: [length]})
 
         print("-"*80)
         print("-"*80)
-
         print("Classification:")
-        print("".join([toks[x] for x in r[0].values]))
+        print("".join([toks[x] for x in output[0].values])) 
         print("-"*80)
         print("-"*80)
 
