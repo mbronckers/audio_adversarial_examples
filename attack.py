@@ -150,13 +150,13 @@ class Attack:
 
     def attack(self, audio, lengths, target, finetune=None):
         sess = self.sess
-
-        # Init all the variables appropriately
+        
         # TODO: each of these assign ops creates a new TF graph
         # object, and they should be all created only once in the
         # constructor. It works fine as long as you don't call
         # attack() a bunch of times.
-
+        
+        # Init all the variables appropriately
         sess.run(tf.variables_initializer([self.delta])) # initialize the delta
         sess.run(self.original.assign(np.array(audio))) # assign original audio
         
@@ -244,11 +244,12 @@ class Attack:
             print("CTC loss: %.3f"%np.mean(cl), "\t", "\t".join("%.3f"%x for x in cl))
 
             logits = np.argmax(logits,axis=2).T
+            
             for ii in range(self.batch_size):
                 # Every 100 iterations, check if we've succeeded
                 # if we have (or if it's the final epoch) then we
-                # should record our progress and decrease the
-                # rescale constant on the delta.
+                # should record our progress and
+                # decrease the rescale constant on the delta.
 
                 if (self.loss_fn == "CTC" and i%10 == 0 and res[ii] == "".join([toks[x] for x in target[ii]])) \
                    or (i == MAX-1 and final_deltas[ii] is None):

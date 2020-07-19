@@ -91,7 +91,7 @@ def main():
         
         # note to self: greedy decoder is beam with top_widths=1 and beam_width=1
         # decoded.values is a CTCBeamSearchDecoder
-        decoded, _ = tf.nn.ctc_beam_search_decoder(logits, lengths, merge_repeated=False, beam_width=500)
+        decoded, _ = tf.nn.ctc_beam_search_decoder(logits, lengths, merge_repeated=True, beam_width=500)
         
         print(80*"-")
         print(decoded[0])
