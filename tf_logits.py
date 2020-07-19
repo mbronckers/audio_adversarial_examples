@@ -35,7 +35,9 @@ def compute_mfcc(audio, **kwargs):
 
     sample_rate = 16000 # 16KHz
     frame_size = 0.032 # 20ms to 40ms with 50% (+/-10%) overlap between consecutive frames
-    frame_stride = 0.015 # 10ms stride 
+    frame_stride = 0.01 # 10ms stride 
+    max_chars_per_second = 50
+    samples_per_character = int(sample_rate / max_chars_per_second)
 
     frame_length, frame_step = frame_size * sample_rate, frame_stride * sample_rate  # Convert from seconds to samples
     frame_length = int(round(frame_length)) # how many samples in a frame
@@ -52,7 +54,7 @@ def compute_mfcc(audio, **kwargs):
                         np.zeros((batch_size, frame_length), dtype=np.float32)), 1)
 
     # 2. windowing into frames of frame_length samples, overlapping
-    windowed = tf.stack([audio[:, i:i+frame_length] for i in range(0, signal_length - 320, 320)], 1)
+    windowed = tf.stack([audio[:, i:i+frame_length] for i in range(0, signal_length - samples_per_character, samples_per_character)], 1)
     window = np.hamming(frame_length) # Hamming window
     windowed = windowed * window
 

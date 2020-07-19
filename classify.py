@@ -68,14 +68,15 @@ def main():
         new_input = tf.placeholder(tf.float32, [1, N])
         lengths = tf.placeholder(tf.int32, [1])
         
+        max_chars_per_second = 50
+        samples_per_character = sample_rate / max_chars_per_second
+        length = (N-1) // samples_per_character
 
-        length = (N-1) // 320 # maximum number of characters (50/sec = audio len//320)
-        
         print("-"*80)
         print("Sample rate:", sample_rate)
         print("Audio: ", audio)
         print("Length of audio: ", N)
-        print("Length: ", length)
+        print("Length in characters(?): ", length)
         print("-"*80)
 
         with tf.variable_scope("", reuse=tf.AUTO_REUSE):
@@ -83,7 +84,7 @@ def main():
 
 
         saver = tf.train.Saver()
-        saver.restore(sess, args.restore_path)
+        saver.restore(sess, args.restore_path) # restore DeepSpeech model
 
         # logits shape [max_time, batch_size, num_classes]
         print('Logits shape: ', logits.shape)

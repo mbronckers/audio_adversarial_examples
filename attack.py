@@ -64,6 +64,7 @@ class Attack:
         self.phrase_length = phrase_length
         self.max_audio_len = max_audio_len
         self.mp3 = mp3
+        self.max_chars_per_sec = 320
 
         # Create all the variables necessary
         # they are prefixed with qq_ just so that we know which
@@ -81,12 +82,13 @@ class Attack:
 
         # Initially we bound the l_infty norm by 2000, increase this
         # constant if it's not big enough of a distortion for your dataset.
-        self.apply_delta = tf.clip_by_value(delta, -2000, 2000)*self.rescale
+        # as we get stricter in our rescale, the effective delta becomes smaller
+        self.apply_delta = tf.clip_by_value(delta, -2000, 2000) * self.rescale
 
         # We set the new input to the model to be the above delta
         # plus a mask, which allows us to enforce that certain
-        # values remain constant 0 for length padding sequences.
-        self.new_input = new_input = self.apply_delta*mask + original
+        # values remain constant 0 for length padding sequences
+        self.new_input = new_input = self.apply_delta*mask + original # effective adversarial sample
 
         # We add a tiny bit of noise to help make sure that we can
         # clip our values to 16-bit integers and not break things.
@@ -134,8 +136,8 @@ class Attack:
         start_vars = set(x.name for x in tf.global_variables())
         optimizer = tf.train.AdamOptimizer(learning_rate) # create Adam optimizer
 
-        grad, var = optimizer.compute_gradients(self.loss, [delta])[0] # Compute the gradients of the deltas, process them if you want (not done in this case)
-        self.train = optimizer.apply_gradients([(tf.sign(grad), var)]) # returns Op that applies gradients
+        delta_gradient, delta_variable = optimizer.compute_gradients(self.loss, [delta])[0] # Compute the gradients of the deltas on loss
+        self.train = optimizer.apply_gradients([(tf.sign(delta_gradient), delta_variable)]) # apply gradient sign to delta variable
         
         end_vars = tf.global_variables()
         new_vars = [x for x in end_vars if x.name not in start_vars]
@@ -149,20 +151,33 @@ class Attack:
     def attack(self, audio, lengths, target, finetune=None):
         sess = self.sess
 
-        # Initialize all of the variables
+        # Init all the variables appropriately
         # TODO: each of these assign ops creates a new TF graph
         # object, and they should be all created only once in the
         # constructor. It works fine as long as you don't call
         # attack() a bunch of times.
-        sess.run(tf.variables_initializer([self.delta]))
-        sess.run(self.original.assign(np.array(audio)))
-        sess.run(self.lengths.assign((np.array(lengths)-1)//320))
-        sess.run(self.mask.assign(np.array([[1 if i < l else 0 for i in range(self.max_audio_len)] for l in lengths])))
-        sess.run(self.cwmask.assign(np.array([[1 if i < l else 0 for i in range(self.phrase_length)] for l in (np.array(lengths)-1)//320])))
+
+        sess.run(tf.variables_initializer([self.delta])) # initialize the delta
+        sess.run(self.original.assign(np.array(audio))) # assign original audio
+        
+        # set the lengths of the audio in characters
+        sess.run(self.lengths.assign((np.array(lengths)-1)//self.max_chars_per_sec))
+
+        # set mask to enforce 0s for padding
+        sess.run(self.mask.assign(np.array([[1 if i < l else 0 for i in range(self.max_audio_len)] for l in lengths]))) # 0 for padding sequences
+        
+        # set cwmask to enforce 0s for characters beyond original phrase length
+        sess.run(self.cwmask.assign(np.array([[1 if i < l else 0 for i in range(self.phrase_length)] for l in (np.array(lengths)-1)//self.max_chars_per_sec])))
+        
+        # set target phrase length(s)
         sess.run(self.target_phrase_lengths.assign(np.array([len(x) for x in target])))
+        
+        # set target phrase(s) plus 0s for the remaining original phrase
         sess.run(self.target_phrase.assign(np.array([list(t)+[0]*(self.phrase_length-len(t)) for t in target])))
         c = np.ones((self.batch_size, self.phrase_length))
         sess.run(self.importance.assign(c))
+        
+        # rescale constant initialized to 1
         sess.run(self.rescale.assign(np.ones((self.batch_size,1))))
 
         # Here we'll keep track of the best solution we've found so far
@@ -207,7 +222,7 @@ class Attack:
                     
                     # And here we print the argmax of the alignment.
                     res2 = np.argmax(logits,axis=2).T
-                    res2 = ["".join(toks[int(x)] for x in y[:(l-1) // 320]) for y,l in zip(res2,lengths)]
+                    res2 = ["".join(toks[int(x)] for x in y[:(l-1) // self.max_chars_per_sec]) for y,l in zip(res2,lengths)]
                     print("\n".join(res2))
 
 
@@ -233,7 +248,8 @@ class Attack:
                 # Every 100 iterations, check if we've succeeded
                 # if we have (or if it's the final epoch) then we
                 # should record our progress and decrease the
-                # rescale constant.
+                # rescale constant on the delta.
+
                 if (self.loss_fn == "CTC" and i%10 == 0 and res[ii] == "".join([toks[x] for x in target[ii]])) \
                    or (i == MAX-1 and final_deltas[ii] is None):
                     
@@ -256,9 +272,9 @@ class Attack:
                     # Adjust the best solution found so far
                     final_deltas[ii] = new_input[ii]
 
-                    print("Worked i=%d ctcloss=%f bound=%f"%(ii,cl[ii], 2000*rescale[ii][0]))
-                    print('delta',np.max(np.abs(new_input[ii]-audio[ii]))) # log the delta's value
+                    print("Worked i=%d, ctcloss=%f, bound=%f, delta=%f"%(ii,cl[ii], 2000*rescale[ii][0], np.max(np.abs(new_input[ii]-audio[ii]))))
                     
+                    # Change the rescale factor
                     sess.run(self.rescale.assign(rescale))
 
                     # Just for debugging, save the adversarial example
