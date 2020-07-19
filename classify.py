@@ -76,7 +76,7 @@ def main():
         print("Sample rate:", sample_rate)
         print("Audio: ", audio)
         print("Length of audio: ", N)
-        print("Length in characters(?): ", length)
+        print("Length in characters: ", length)
         print("-"*80)
 
         with tf.variable_scope("", reuse=tf.AUTO_REUSE):
@@ -91,11 +91,7 @@ def main():
         
         # note to self: greedy decoder is beam with top_widths=1 and beam_width=1
         # decoded.values is a CTCBeamSearchDecoder
-        decoded, _ = tf.nn.ctc_beam_search_decoder(logits, lengths, merge_repeated=True, beam_width=500)
-        
-        print(80*"-")
-        print(decoded[0])
-        print(80*"-")
+        decoded, _ = tf.nn.ctc_beam_search_decoder(logits, lengths, merge_repeated=False, beam_width=500)
         
         # returns sparse tensor of classified characters
         # .indices: idx w/ non-zero values (2D)
@@ -105,10 +101,8 @@ def main():
                                    lengths: [length]})
 
         print("-"*80)
-        print("-"*80)
         print("Classification:")
         print("".join([toks[x] for x in output[0].values])) 
-        print("-"*80)
         print("-"*80)
 
 main()

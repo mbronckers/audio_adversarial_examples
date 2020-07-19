@@ -44,9 +44,11 @@ def compute_mfcc(audio, **kwargs):
     frame_step = int(round(frame_step)) 
     num_frames = int(np.ceil(float(np.abs(signal_length - frame_length)) / frame_step))  # Make sure that we have at least 1 frame
 
-    print(frame_length)
-    print(num_frames)
-
+    print(80*'-')
+    print("Frame length:", frame_length)
+    print("Number of frames: ", num_frames)
+    print(80*'-')
+    
     # 1. Pre-emphasizer, a high-pass filter: passes only signals above a cutoff frequency and attenuates lower frequencies
     # source: https://haythamfayek.com/2016/04/21/speech-processing-for-machine-learning.html
     pre_emphasis = 0.97
