@@ -207,7 +207,7 @@ class Attack:
                     
                     # And here we print the argmax of the alignment.
                     res2 = np.argmax(logits,axis=2).T
-                    res2 = ["".join(toks[int(x)] for x in y[:(l-1)//320]) for y,l in zip(res2,lengths)]
+                    res2 = ["".join(toks[int(x)] for x in y[:(l-1) // 320]) for y,l in zip(res2,lengths)]
                     print("\n".join(res2))
 
 
@@ -226,7 +226,7 @@ class Attack:
                                                           feed_dict)
                     
             # Report progress
-            print("%.3f"%np.mean(cl), "\t", "\t".join("%.3f"%x for x in cl))
+            print("CTC loss: %.3f"%np.mean(cl), "\t", "\t".join("%.3f"%x for x in cl))
 
             logits = np.argmax(logits,axis=2).T
             for ii in range(self.batch_size):
@@ -236,8 +236,10 @@ class Attack:
                 # rescale constant.
                 if (self.loss_fn == "CTC" and i%10 == 0 and res[ii] == "".join([toks[x] for x in target[ii]])) \
                    or (i == MAX-1 and final_deltas[ii] is None):
+                    
                     # Get the current constant
                     rescale = sess.run(self.rescale)
+                    
                     if rescale[ii]*2000 > np.max(np.abs(d)):
                         # If we're already below the threshold, then
                         # just reduce the threshold to the current

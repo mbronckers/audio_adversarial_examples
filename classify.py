@@ -51,6 +51,7 @@ def main():
     args = parser.parse_args()
     while len(sys.argv) > 1:
         sys.argv.pop()
+    
     with tf.Session() as sess:
         
         if args.input.split(".")[-1] == 'mp3':
@@ -67,7 +68,8 @@ def main():
         new_input = tf.placeholder(tf.float32, [1, N])
         lengths = tf.placeholder(tf.int32, [1])
         
-        length = (N-1)//320 # maximum number of characters (50/sec = audio len//320)
+
+        length = (N-1) // 320 # maximum number of characters (50/sec = audio len//320)
         
         print("-"*80)
         print("Sample rate:", sample_rate)

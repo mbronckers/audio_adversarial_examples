@@ -28,18 +28,32 @@ def compute_mfcc(audio, **kwargs):
     TensorFlow so that we can differentiate through it.
     """
 
-    batch_size, size = audio.get_shape().as_list() # get batch size by getting audio shape
+    # 0. Set digital signal processing parameters
+    batch_size, signal_length = audio.get_shape().as_list() # get batch and signal_length by getting audio shape
     audio = tf.cast(audio, tf.float32) # cast audio file to float32 type
-    frame_length = 512 # how many samples in a frame
     num_mfcc_features = 26 # default n_input in DeepSpeech
 
+    sample_rate = 16000 # 16KHz
+    frame_size = 0.032 # 20ms to 40ms with 50% (+/-10%) overlap between consecutive frames
+    frame_stride = 0.015 # 10ms stride 
+
+    frame_length, frame_step = frame_size * sample_rate, frame_stride * sample_rate  # Convert from seconds to samples
+    frame_length = int(round(frame_length)) # how many samples in a frame
+    frame_step = int(round(frame_step)) 
+    num_frames = int(np.ceil(float(np.abs(signal_length - frame_length)) / frame_step))  # Make sure that we have at least 1 frame
+
+    print(frame_length)
+    print(num_frames)
+
     # 1. Pre-emphasizer, a high-pass filter: passes only signals above a cutoff frequency and attenuates lower frequencies
-    audio = tf.concat((audio[:, :1], audio[:, 1:] - 0.97*audio[:, :-1], np.zeros((batch_size, frame_length), dtype=np.float32)), 1)
+    # source: https://haythamfayek.com/2016/04/21/speech-processing-for-machine-learning.html
+    pre_emphasis = 0.97
+    audio = tf.concat((audio[:, :1], audio[:, 1:] - pre_emphasis*audio[:, :-1], \
+                        np.zeros((batch_size, frame_length), dtype=np.float32)), 1)
 
-    # 2. windowing into frames of 512 samples, overlapping 
-    windowed = tf.stack([audio[:, i:i+frame_length] for i in range(0, size-320, 320)], 1)
-
-    window = np.hamming(frame_length)
+    # 2. windowing into frames of frame_length samples, overlapping
+    windowed = tf.stack([audio[:, i:i+frame_length] for i in range(0, signal_length - 320, 320)], 1)
+    window = np.hamming(frame_length) # Hamming window
     windowed = windowed * window
 
     # 3. Take the FFT to convert to frequency space
@@ -51,17 +65,18 @@ def compute_mfcc(audio, **kwargs):
     filters = np.load("filterbanks.npy").T
     feat = tf.matmul(ffted, np.array([filters]*batch_size,dtype=np.float32))+np.finfo(float).eps
 
-    # 5. Take the DCT again, because why not
+    # 5. Take the DCT to decorrelate the FFT coefficients
     feat = tf.log(feat)
     feat = tf.spectral.dct(feat, type=2, norm='ortho')[:,:,:num_mfcc_features]
 
-    # 6. Amplify high frequencies for some reason
+    # 6. Amplify high frequencies by sinusoidal liftering to the MFCCs to de-emphasize higher MFCCs 
+    # (which has been claimed to improve speech recognition in noisy signals)
     _, nframes, ncoeff = feat.get_shape().as_list()
-    n = np.arange(ncoeff)
-    lift = 1 + (22/2.)*np.sin(np.pi*n/22)
-    feat = lift*feat
+    n = np.arange(ncoeff) 
+    cep_lifter = 22 # liftering is filtering in the cepstral domain
+    lift = 1 + (cep_lifter / 2.)*np.sin(np.pi*n/cep_lifter)
+    feat *= lift
     width = feat.get_shape().as_list()[1]
-
 
     # 7. And now stick log energy next to the features
     feat = tf.concat( (tf.reshape(tf.log(energy), (-1, width, 1)), feat[:, :, 1:]), axis=2)
