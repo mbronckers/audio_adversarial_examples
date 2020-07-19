@@ -47,8 +47,8 @@ git clone https://github.com/mozilla/DeepSpeech.git
 
 (cd DeepSpeech; git checkout tags/v0.4.1)
 
-2c. If you get an error with tflite_convert, comment out DeepSpeech.py Line 21
-# from tensorflow.contrib.lite.python import tflite_convert
+2c. If you get an error with tflite_convert, comment out DeepSpeech.py
+Line 21 # from tensorflow.contrib.lite.python import tflite_convert
 
 3. Download the DeepSpeech model
 
